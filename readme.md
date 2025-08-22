@@ -27,6 +27,6 @@ This is a live AI-powered trading signal, options, and market news dashboard wit
 ## 🤝 Credits
 
 - API powered by Upstox, Binance, NewsAPI
-- Built by [yourusername](https://github.com/yourusername)
+- Built by [Anurag](https://github.com/yourusername)
 
 ---
