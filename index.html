@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>✨ Pro Signal Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --gold: #FFD700;
+      --dark: #161616;
+      --light: #fffde9;
+      --buy: #19e65b;
+      --sell: #ff286a;
+    }
+    body { font-family: 'Montserrat', Arial, sans-serif; margin: 0; min-height: 100vh; background: var(--dark); color: var(--gold); transition: background .5s,color .5s; }
+    .container { max-width: 520px; margin: 40px auto 0; background: rgba(24,24,24,0.93); border-radius: 1.4em; padding: 2em 1.2em; box-shadow: 0 5px 24px #ffc80055; border:2px solid var(--gold);}
+    h1 { margin-top:0;margin-bottom:.35em; }
+    .desc { color: #ffe066; margin-bottom: 2em; }
+    select, button, input { font-size: 1.12em; margin: .8em 0 .7em 0; padding: 8px 16px; border-radius: 8px; border: none; outline: none;}
+    select, input { background: #222; color: var(--gold);}
+    button { background: var(--gold); color: #161616; font-weight: bold; cursor: pointer; margin-left: 8px;}
+    .theme-toggle { margin-left: 12px;}
+    .theme-dot { font-size:1.3em; border:none;background:none;cursor:pointer; }
+    #spinner { display:none;width:56px;height:56px;border-radius:50%;margin:22px auto;border:7px solid #ffd7003a;border-top:7px solid var(--gold); animation:spin 1s linear infinite;}
+    @keyframes spin { 100% {transform:rotate(360deg);} }
+    .card { border-radius:16px;padding:1em 1em 0.8em 1em; background:#1b1a12;color:var(--gold);margin-top:1em;box-shadow:0 3px 15px #ffd7002f;}
+    .card.buy { background: #092a14; color: #1cd14f; border:2px solid var(--buy);}
+    .card.sell { background: #380807; color: #fa2071; border:2px solid var(--sell);}
+    .card.hold { background: #23231b;color:#ffd700;border:2px solid var(--gold);}
+    .optionchain { font-size:.97em; background: #211; color: var(--gold); padding: 5px; border-radius:7px; }
+    #news {margin-top:1.3em; color: #e5e2cd;}
+    @media (max-width:600px) {.container { padding:.5em 0 .6em 0; } select,button,input{font-size:1em}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>✨ Pro Signal Dashboard</h1>
+    <div class="desc">Live signals & news | Multi-theme | Options-ready</div>
+    <label>
+      Symbol:
+      <select id="symbolMenu"></select>
+    </label>
+    <button onclick="getSignal()" id="signalBtn">Get Signal</button>
+    <button onclick="getNews()" id="newsBtn">News</button>
+    <span class="theme-toggle">
+      <button class="theme-dot" onclick="setTheme('gold')" title="Gold Theme">🟡</button>
+      <button class="theme-dot" onclick="setTheme('dark')" title="Dark Theme">🌑</button>
+      <button class="theme-dot" onclick="setTheme('light')" title="Light Theme">⚪</button>
+    </span>
+    <div id="spinner"></div>
+    <div id="signal"></div>
+    <div id="news"></div>
+  </div>
+<script>
+const BACKEND_URL = "http://127.0.0.1:5000"; // Change to your deployed backend!
+
+let symbolList = [];
+window.onload = function() {
+  fetch(BACKEND_URL + "/symbols")
+    .then(res => res.json())
+    .then(data => {
+      symbolList = [...(data.options||[]), ...(data.nse||[]), ...(data.binance||[])];
+      symbolList = [...new Set(symbolList)];
+      let menu = document.getElementById('symbolMenu');
+      symbolList.forEach(sym => {
+        let el = document.createElement('option'); el.textContent = sym; el.value = sym; menu.appendChild(el);
+      });
+    });
+  setTheme(localStorage.getItem("theme")||"gold");
+}
+
+function showSpinner(y) {document.getElementById('spinner').style.display = y?"block":"none";}
+function cardClass(signal) {
+  if(!signal) return "hold";
+  signal = signal.toUpperCase();
+  if(signal.includes("BUY")) return "buy";
+  if(signal.includes("SELL")) return "sell";
+  return "hold";
+}
+function getSignal() {
+  showSpinner(true);
+  document.getElementById('signal').innerHTML = "";
+  document.getElementById('news').innerHTML = "";
+  let symbol = document.getElementById('symbolMenu').value;
+  fetch(BACKEND_URL + "/get_signal", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({symbol})})
+  .then(resp => resp.json())
+  .then(data => {
+    showSpinner(false);
+    let cls = cardClass(data.signal);
+    let msg = data.signal ? `
+      <div class="card ${cls}">
+        <b style="font-size:1.3em;">${data.signal||"-"} ${data.emoji||''}</b> for <b>${data.symbol||''}</b><hr>
+        <b>Accuracy:</b> ${data.itm_est||""} | <b>PCR:</b> ${data.pcr||""} | <b>Price:</b> ${data.last_price||'-'}<br>
+        <span style="font-size:0.96em;"><b>Reason:</b> ${data.reason||'-'}</span><br>
+        <b>Option Chain:</b> <span class="optionchain">${JSON.stringify(data.option_chain,null,1)}</span><br>
+        <b>Time:</b> ${data.time||''}<br>
+        <b>News:</b> <i>${(data.news||"")}</i>
+      </div>` :
+      `<div class="card hold" style="color:orange">${data.error||"Could not fetch signal"}<br>Try another symbol.</div>`;
+    document.getElementById('signal').innerHTML = msg;
+  });
+}
+function getNews() {
+  let symbol = document.getElementById('symbolMenu').value;
+  document.getElementById('news').innerHTML = "<span style='color:gold'>Loading news...</span>";
+  fetch(BACKEND_URL + "/news?symbol="+symbol)
+    .then(resp=>resp.json())
+    .then(data=>{
+      document.getElementById('news').innerHTML = `<div><b>📰 Latest News for ${data.symbol}:</b><br><i>${data.news}</i></div>`;
+    });
+}
+function setTheme(theme) {
+  if(theme=='gold') {
+    document.body.style.background="#161616"; document.body.style.color="var(--gold)";
+    document.querySelector(".container").style.background = "rgba(24,24,24,0.93)";
+    document.querySelector(".container").style.borderColor = "var(--gold)";
+  } else if(theme=='dark') {
+    document.body.style.background="#222333"; document.body.style.color="#69d3ff";
+    document.querySelector(".container").style.background = "#1a1a32";
+    document.querySelector(".container").style.borderColor = "#69d3ff";
+  } else if(theme=='light') {
+    document.body.style.background="var(--light)"; document.body.style.color="#995a00";
+    document.querySelector(".container").style.background = "#fff8eb";
+    document.querySelector(".container").style.borderColor = "#deb51c";
+  }
+  localStorage.setItem("theme",theme);
+}
+</script>
+</body>
+</html>
